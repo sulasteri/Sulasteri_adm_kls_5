@@ -1,0 +1,67 @@
+<script>
+  // TEMPEL URL WEB APP GOOGLE APPS SCRIPT ANDA DI SINI:
+  const GAS_WEBAPP_URL = "https://script.google.com/macros/s/PASTE_URL_ANDA_DI_SINI/exec";
+
+  // 1. Indikator Status Cloud di Pojok Layar
+  const syncBadge = document.createElement("div");
+  syncBadge.style.cssText = "position:fixed;bottom:14px;right:14px;z-index:9999;padding:8px 14px;border-radius:999px;font-size:12px;font-weight:600;background:#0F4C81;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.18);display:flex;align-items:center;gap:6px;";
+  syncBadge.innerHTML = "☁️ Menghubungkan Cloud...";
+  document.body.appendChild(syncBadge);
+
+  // 2. Muat Data dari Google Sheets saat Google Sites dibuka
+  async function loadFromGoogleSheets() {
+    if (!GAS_WEBAPP_URL.includes("script.google.com")) return;
+    try {
+      const res = await fetch(GAS_WEBAPP_URL);
+      const json = await res.json();
+      if (json.status === "success" && json.data) {
+        Object.keys(json.data).forEach(key => {
+          try {
+            localStorage.setItem(key, JSON.stringify(json.data[key]));
+          } catch (e) {}
+        });
+        syncBadge.style.background = "#059669";
+        syncBadge.innerHTML = "✅ Tersinkron Google Sheets";
+      }
+    } catch (err) {
+      syncBadge.style.background = "#D97706";
+      syncBadge.innerHTML = "⚠️ Mode Offline (Cek URL GAS)";
+    }
+  }
+
+  // 3. Simpan Otomatis ke Google Sheets setiap ada perubahan data
+  let syncTimer = null;
+  function queueCloudSync(key, value) {
+    if (!GAS_WEBAPP_URL.includes("script.google.com")) return;
+    syncBadge.style.background = "#2563EB";
+    syncBadge.innerHTML = "🔄 Menyimpan ke Cloud...";
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(async () => {
+      try {
+        await fetch(GAS_WEBAPP_URL, {
+          method: "POST",
+          mode: "no-cors", // Wajib untuk Google Sites -> Apps Script
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            user: "Sulasteri, S.Pd., Gr.",
+            modules: { [key]: JSON.parse(value) }
+          })
+        });
+        syncBadge.style.background = "#059669";
+        syncBadge.innerHTML = "✅ Tersimpan (" + new Date().toLocaleTimeString("id-ID", {hour:'2-digit', minute:'2-digit'}) + ")";
+      } catch (e) {
+        syncBadge.style.background = "#DC2626";
+        syncBadge.innerHTML = "❌ Gagal Sinkron";
+      }
+    }, 1200);
+  }
+
+  // Intercept semua penyimpanan data aplikasi
+  const originalSetItem = localStorage.setItem;
+  localStorage.setItem = function(key, value) {
+    try { originalSetItem.apply(this, arguments); } catch (e) {}
+    queueCloudSync(key, value);
+  };
+
+  window.addEventListener("DOMContentLoaded", loadFromGoogleSheets);
+</script>
